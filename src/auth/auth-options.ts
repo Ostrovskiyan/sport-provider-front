@@ -1,33 +1,44 @@
 import { cookies } from "next/headers";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { User } from "next-auth";
+import { JWT } from "next-auth/jwt";
 
-const springOAuthProvider = {
-  id: "spring",
-  name: "Spring Auth Server",
-  type: "oauth",
-  version: "2.0",
-  authorization: "http://localhost:8081/oauth2/authorize",
-  token: "http://localhost:8081/oauth2/token",
-  userinfo: "http://localhost:8081/userinfo",
-  clientId: 'reactapp',
-  clientSecret: 'reactapp',
-  clientAuthMethod: "client_secret_basic",
-  redirectUri: "http://localhost:3000/api/auth/callback",
-  scope: "openid",
-  idToken: true,
-  issuer: "http://localhost:8081",
-  // jwks_endpoint: 'http://localhost:9000/oauth2/jwks',
-  wellKnown: "http://localhost:8081/.well-known/openid-configuration",
-  profile: (profile: any) => {
-    console.log("profile", profile);
-    return {
-        id: profile.sub,
-      name: profile.sub
-    };
+const loginPasswordProvider = CredentialsProvider({
+  id: "login-password",
+  name: "Login Password",
+  credentials: {
+    username: { label: "Username", type: "text", placeholder: "jsmith" },
+    password: { label: "Password", type: "password" }
   },
-};
+  async authorize(credentials, req) {
+    const response = await fetch("http://localhost:8080/api/v1/usr-srv/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: credentials?.username,
+        password: credentials?.password
+      })
+    });
+
+    const jwt = await response.text();
+
+    const user : User = {
+      id: "albert",
+      name: "albert",
+      accessToken: jwt,
+      role: "admin",
+    };
+
+    return user;
+  },
+});
 
 export const authOptions = {
-  providers: [springOAuthProvider],
+  providers: [
+    loginPasswordProvider
+  ],
   events: {
     async signIn() {
       console.log("User signed in!");
@@ -38,26 +49,21 @@ export const authOptions = {
     },
   },
   callbacks : {
-  async jwt({ token, account } : {token: any, account: any}) {
-    // Persist the OAuth access_token to the token right after signin
-    console.log("jwt callback", token, account);
-    const cookiesStore = await cookies();
-    if (account) {
-      token.accessToken = account.access_token
-      cookiesStore.set({
-        name: "X-Access-Token",
-        value: account.access_token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-      })
+    async jwt({ token, user, account, profile } : {token: JWT, user: User, account: any, profile: any}) {
+      // Persist the OAuth access_token to the token right after signin
+      console.log("jwt callback", token, user, account, profile);
+      if (user) {
+        token.accessToken = user.accessToken;
+        token.role = user.role;
+      }
+      return token
+    },
+    async session({ session, token, user }: {session: any, token: any, user: User}) {
+      // Send properties to the client, like an access_token from a provider.
+      console.log("session callback", session, token, user);
+      session.accessToken = token.accessToken
+      session.role = token.role;
+      return session
     }
-    return token
-  },
-  async session({ session, token, user }: {session: any, token: any, user: any}) {
-    // Send properties to the client, like an access_token from a provider.
-    console.log("session callback", session, token, user);
-    session.accessToken = token.accessToken
-    return session
   }
-}
 };

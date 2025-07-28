@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { signOut } from "next-auth/react"
 import LogoutButton from "@/auth/logout-button";
+import { authOptions } from "@/auth/auth-options";
 
 export default async function Profile() {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
